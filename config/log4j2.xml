@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- 参考 https://logging.apache.org/log4j/2.x/manual/appenders.html -->
+
+<!--
+    status:log4j内部日志级别("off" "trace" "debug" "info" "warn" "error" "fatal" "all")
+    monitorInterval:配置变化监控检测时间(秒)
+    shutdownHook:log4j关闭钩子,默认开启,关闭="disable"
+    shutdownTimeout:log4j关闭钩子超时时间(毫秒数)
+    -->
+<configuration status="WARN" monitorInterval="60">
+
+    <!--定义参数,使用${}获取-->
+    <Properties>
+        <Property name="LOG_DIR">logs/</Property>
+        <Property name="LOG_FILE_NAME">system.log</Property>
+        <Property name="PATTERN">[%d{yyyy-MM-dd HH:mm:ss:SSS} %p] [%t] (%F:%L) %m%n</Property>
+        <Property name="MAX_FILE_SIZE">50 MB</Property>
+    </Properties>
+
+    <!--所有appender都要有name属性,并要在Logger中引用才会生效-->
+    <appenders>
+
+        <!--输出到控制台-->
+        <Console name="ConsoleAppend" target="SYSTEM_OUT">
+            <PatternLayout pattern="${PATTERN}"/>
+        </Console>
+
+        <!--输出到文件-->
+        <!--append:追加输入(默认true)
+            bufferedIO:先写入缓存(默认true)
+            bufferSize:缓存大小
+            createOnDemand:输出时才创建文件(默认false)
+            immediateFlush:每次写操作后都刷新到磁盘(默认true,若使用异步Logger和Appender需要关闭,因为会自动刷新) -->
+        <File name="FileAppend" fileName="${LOG_FILE_NAME}">
+            <PatternLayout pattern="${PATTERN}"/>
+        </File>
+
+        <!--输出到文件(同FileAppender类似,默认使用缓存,多线程下性能略好于FileAppender)-->
+        <!--append:追加输入(默认true)
+            immediateFlush:每次写操作后都刷新到磁盘(默认true,若使用异步Logger和Appender需要关闭,因为会自动刷新)-->
+        <RandomAccessFileAppender name="RandomAccessFileAppend" fileName="${LOG_FILE_NAME}">
+            <PatternLayout pattern="${PATTERN}"/>
+        </RandomAccessFileAppender>
+
+        <!--异步appender,不同于异步Logger-->
+        <Async name="AsyncAppend">
+            <AppenderRef ref="FileAppend"/>
+        </Async>
+
+        <!--(归档)输出到文件-->
+        <!-- 可选参数
+            fileName:日志写入的文件名
+            append:追加到文件末尾(默认true)
+            bufferedIO:日志先写入缓冲区,缓冲区满后再刷入磁盘(默认true)
+            bufferSize:缓冲区大小,默认8192byte
+            createOnDemand:仅当日志通过此附加程序时才创建文件(默认false)
+            filePattern:归档日志文件的文件名的模式
+            immediateFlush:每次写操作后都会进行刷新到磁盘(默认true,若使用异步Logger和Appender需要关闭,因为会自动刷新)-->
+        <!--下面配置含义:每天或文件达到MAX_FILE_SIZE时进行一次归档-->
+        <RollingFile name="RollingFileAppend" fileName="${LOG_DIR}/${LOG_FILE_NAME}"
+                     filePattern="${LOG_DIR}/$${date:yyyy_MM}/system_%d{yyyyMMdd}_%i.log.gz">
+            <PatternLayout pattern="${log_pattern}" charset="UTF-8"/>
+
+            <!--触发归档的复合策略(任意一个触发则归档)-->
+            <Policies>
+                <!--基于时间的触发策略-->
+                <TimeBasedTriggeringPolicy interval="1" modulate="false"/>
+                <!--基于大小的触发策略-->
+                <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
+            </Policies>
+            <!--归档的操作-->
+            <DefaultRolloverStrategy fileIndex="nomax"/>
+        </RollingFile>
+
+        <!--(归档)输出到文件(同RollingFile类似,默认使用缓存,多线程下性能略好于RollingFile)-->
+        <!-- 可选参数
+            fileName:日志写入的文件名
+            append:追加到文件末尾(默认true)
+            filePattern:归档日志文件的文件名的模式
+            immediateFlush:每次写操作后都会进行刷新到磁盘(默认true,若使用异步Logger和Appender需要关闭,因为会自动刷新) -->
+        <!--下面配置含义:每天或文件达到MAX_FILE_SIZE时进行一次归档-->
+        <RollingRandomAccessFile name="RollingRandomAccessFileAppend" fileName="${LOG_DIR}/${LOG_FILE_NAME}"
+                                 filePattern="${LOG_DIR}/$${date:yyyy_MM}/system_%d{yyyyMMdd}_%i.log.gz">
+            <PatternLayout pattern="${log_pattern}" charset="UTF-8"/>
+
+            <!--触发归档的复合策略(任意一个触发则归档)-->
+            <Policies>
+                <!--基于时间的触发策略-->
+                <TimeBasedTriggeringPolicy interval="1" modulate="false"/>
+                <!--基于大小的触发策略-->
+                <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
+            </Policies>
+            <!--归档的操作-->
+            <DefaultRolloverStrategy fileIndex="nomax"/>
+        </RollingRandomAccessFile>
+
+        <!-- 按指定规则路由到下级Appender-->
+        <Routing name="RoutingAppend">
+            <Routes pattern="$${event:ThreadName}">
+                <Route ref="ConsoleAppend" key="main"/>
+                <Route ref="FileAppend" key="thread1"/>
+            </Routes>
+        </Routing>
+    </appenders>
+
+    <loggers>
+        <root level="INFO">
+            <AppenderRef ref="RoutingAppend"/>
+        </root>
+    </loggers>
+
+</configuration>
